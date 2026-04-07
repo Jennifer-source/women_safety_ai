@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#d63384">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Safety Dashboard</title>
+    <style>
+        body { background: #ffeaf2; font-family: 'Segoe UI', sans-serif; text-align: center; padding-top: 50px; }
+        .container { background: white; padding: 30px; border-radius: 20px; display: inline-block; box-shadow: 0 5px 15px rgba(0,0,0,0.1); width: 320px; }
+        .status-box { margin: 20px 0; padding: 15px; border-radius: 10px; font-weight: bold; }
+        .active { background: #d4edda; color: #155724; }
+        .btn-start { background: #d63384; color: white; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; width: 100%; font-size: 16px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Welcome, {{ user }} 🚨</h2>
+        <div id="statusLabel" class="status-box" style="background: #eee;">System: Inactive</div>
+        
+        <input type="text" id="manualMsg" placeholder="Type message (optional)" style="width:90%; padding:8px; margin-bottom:10px; border:1px solid #ddd; border-radius:5px;">
+        
+        <button class="btn-start" onclick="startMonitor()">Start Protection</button>
+        <p style="font-size: 12px; color: #888;">* Keep this tab open for background monitoring</p>
+    </div>
+
+    <script>
+        async function startMonitor() {
+            document.getElementById('statusLabel').innerText = "System: ACTIVE & MONITORING";
+            document.getElementById('statusLabel').className = "status-box active";
+
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const audioContext = new AudioContext();
+            const source = audioContext.createMediaStreamSource(stream);
+            const processor = audioContext.createScriptProcessor(2048, 1, 1);
+
+            source.connect(processor);
+            processor.connect(audioContext.destination);
+
+            processor.onaudioprocess = (e) => {
+                const input = e.inputBuffer.getChannelData(0);
+                let sum = 0;
+                for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
+                let volume = Math.sqrt(sum / input.length);
+
+                // If volume > 0.4 (Scream detected)
+                if (volume > 0.4) {
+                    sendSOS(volume);
+                }
+            };
+        }
+
+        function sendSOS(vol = 0) {
+            const textMsg = document.getElementById('manualMsg').value;
+            navigator.geolocation.getCurrentPosition((pos) => {
+                fetch('/alert', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        lat: pos.coords.latitude,
+                        lng: pos.coords.longitude,
+                        audio_level: vol,
+                        text: textMsg
+                    })
+                });
+            });
+        }
+    </script>
+</body>
+</html>
