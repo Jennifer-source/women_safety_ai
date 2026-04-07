@@ -92,4 +92,9 @@ def logout():
     return redirect(url_for('login'))
 
 if __name__ == '__main__':
+    # These two lines are the fix!
+    with app.app_context():
+        db.create_all()
+    
     app.run(debug=False)
+
